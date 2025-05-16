@@ -522,6 +522,20 @@ let cvtop ty op hte =
   | Reinterpret_int, Cvtop (Ty_int, Reinterpret_float, e1) -> e1
   | Reinterpret_int, Cvtop (Ty_bitv 32, Reinterpret_float, e1) -> e1
   | Reinterpret_int, Cvtop (Ty_bitv 64, Reinterpret_float, e1) -> e1
+  | ToString, Cvtop (_, OfString, e1) -> e1
+  | OfString, Cvtop (_, ToString, e1) -> e1
+  | ToBool, Cvtop (_, OfBool, e1) -> e1
+  | OfBool, Cvtop (_, ToBool, e1) -> e1
+  | PromoteF32, Cvtop (_, DemoteF64, e1) -> e1
+  | DemoteF64, Cvtop (_, PromoteF32, e1) -> e1
+  | Reinterpret_int, Cvtop (_, Reinterpret_float, e1) -> e1
+  | Reinterpret_float, Cvtop (_, Reinterpret_int, e1) -> e1
+  | Zero_extend 0, _ -> hte
+  | Sign_extend 0, _ -> hte
+  | String_from_code, Cvtop (_, String_to_code, e1) -> e1
+  | String_to_code, Cvtop (_, String_from_code, e1) -> e1
+  | String_to_int, Cvtop (_, String_from_int, e1) -> e1
+  | String_from_int, Cvtop (_, String_to_int, e1) -> e1
   | _ -> raw_cvtop ty op hte
 
 let raw_naryop ty op es = make (Naryop (ty, op, es)) [@@inline]
