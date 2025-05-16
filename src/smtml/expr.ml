@@ -325,8 +325,7 @@ let normalize_eq_or_ne op (ty', e1, e2) =
 let negate_relop (hte : t) : t =
   let e =
     match view hte with
-    | Relop (ty, Eq, e1, e2) -> normalize_eq_or_ne Ne (ty, e1, e2)
-    | Relop (ty, Ne, e1, e2) -> normalize_eq_or_ne Eq (ty, e1, e2)
+    | Relop (ty, ((Eq | Ne) as op), e1, e2) -> normalize_eq_or_ne op (ty, e1, e2)
     | Relop (ty, Lt, e1, e2) -> Relop (ty, Le, e2, e1)
     | Relop (ty, LtU, e1, e2) -> Relop (ty, LeU, e2, e1)
     | Relop (ty, Le, e1, e2) -> Relop (ty, Lt, e2, e1)
@@ -517,6 +516,12 @@ let cvtop ty op hte =
   | Ty.Cvtop.String_to_re, _ -> raw_cvtop ty op hte
   | _, Val v -> value (Eval.cvtop ty op v)
   | String_to_float, Cvtop (Ty_real, ToString, real) -> real
+  | Reinterpret_float, Cvtop (Ty_real, Reinterpret_int, e1) -> e1
+  | Reinterpret_float, Cvtop (Ty_fp 32, Reinterpret_int, e1) -> e1
+  | Reinterpret_float, Cvtop (Ty_fp 64, Reinterpret_int, e1) -> e1
+  | Reinterpret_int, Cvtop (Ty_int, Reinterpret_float, e1) -> e1
+  | Reinterpret_int, Cvtop (Ty_bitv 32, Reinterpret_float, e1) -> e1
+  | Reinterpret_int, Cvtop (Ty_bitv 64, Reinterpret_float, e1) -> e1
   | _ -> raw_cvtop ty op hte
 
 let raw_naryop ty op es = make (Naryop (ty, op, es)) [@@inline]
