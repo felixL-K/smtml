@@ -607,7 +607,12 @@ module type M = sig
 
     (** [eval ?completion model t] evaluates the term [t] in the given [model].
         If [completion] is true, missing values are completed. *)
-    val eval : ?completion:bool -> model -> term -> interp option
+    val eval :
+         ?ctx:term Symbol.Map.t
+      -> ?completion:bool
+      -> model
+      -> term
+      -> interp option
   end
 
   (** {2 Solver Handling} *)
@@ -630,12 +635,16 @@ module type M = sig
     val reset : solver -> unit
 
     (** [add solver ts] adds the terms [ts] to the solver [solver]. *)
-    val add : solver -> term list -> unit
+    val add : ?ctx:term Symbol.Map.t -> solver -> term list -> unit
 
     (** [check solver ~assumptions] checks the satisfiability of the solver
         [solver] with the given [assumptions]. Returns [`Sat], [`Unsat], or
         [`Unknown]. *)
-    val check : solver -> assumptions:term list -> [ `Sat | `Unsat | `Unknown ]
+    val check :
+         ?ctx:term Symbol.Map.t
+      -> solver
+      -> assumptions:term list
+      -> [ `Sat | `Unsat | `Unknown ]
 
     (** [model solver] retrieves the model from the solver [solver], if one
         exists. *)

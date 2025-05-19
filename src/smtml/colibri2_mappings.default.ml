@@ -17,57 +17,13 @@ module M = struct
   module DTerm = DExpr.Term
   module DBuiltin = Dolmen_std.Builtin
 
-  module Var = struct
-    include DTerm.Var
-
-    let is_int _ = false
-
-    let print = print
-  end
-
-  module Ex = struct
-    type t = unit
-
-    let print fmt () = Fmt.pf fmt "()"
-
-    let empty = ()
-
-    let union () () = ()
-  end
-
-  module Rat = struct
-    include A
-
-    let m_one = A.minus_one
-
-    let print = A.pp
-
-    let is_int = A.is_integer
-
-    let is_zero v = A.equal v A.zero
-
-    let is_one v = A.equal v A.one
-
-    let mult = A.mul
-
-    let minus = A.neg
-
-    let is_m_one v = A.equal v m_one
-
-    let ceiling = ceil
-  end
-
   module Make () : Mappings_intf.M = struct
     include Dolmenexpr_to_expr.DolmenIntf
 
     type model =
       Colibri2_core.Egraph.wt * (DTerm.Const.t * Colibri2_core.Value.t) list
 
-    module Sim = OcplibSimplex.Basic.Make (Var) (Rat) (Ex)
-
-    type optimize = Sim.Core.t
-
-    type handle = optimize * (Sim.Core.P.t * bool) option
+    type handle
 
     type interp = Colibri2_core.Value.t
 
@@ -216,7 +172,7 @@ module M = struct
         Colibri2_core.Egraph.register env n;
         Colibri2_theories_bool.Boolean.set_true env n
 
-      let add s es =
+      let add ?ctx:_ s es =
         Scheduler.add_assertion s.scheduler (fun d ->
           List.iter (fun e -> new_assertion d e) es )
 
@@ -230,7 +186,7 @@ module M = struct
         | `UnknownUnsat -> `Unknown
         | `Unsat -> `Unsat
 
-      let check s ~assumptions =
+      let check ?ctx:_ s ~assumptions =
         match assumptions with
         | [] -> satisfiability s @@ Scheduler.check_sat s.scheduler
         | _ ->
@@ -269,7 +225,7 @@ module M = struct
       let get_symbols ((_, m) : model) =
         List.map (fun (tcst, _) -> tcst_to_symbol tcst) m
 
-      let eval ?completion:_ (env, _) (t : term) =
+      let eval ?ctx:_ ?completion:_ (env, _) (t : term) =
         let c2v = Colibri2_core.Interp.interp env t in
         Some c2v
     end
