@@ -75,14 +75,6 @@ end
 module DolmenIntf = struct
   include DTerm
 
-  module Internals = struct
-    let caches_consts = false
-
-    let is_available = true
-
-    let has_to_ieee_bv = false
-  end
-
   type ty = DTy.t
 
   type term = DTerm.t
@@ -140,7 +132,7 @@ module DolmenIntf = struct
 
   let int_of_term (t : DTerm.t) =
     match t.term_descr with
-    | Cst { builtin = DBuiltin.Integer i; _ } ->
+    | Cst { builtin = DBuiltin.Bitvec i; _ } ->
       (* There may be a proper alternative to int_of_string somewhere,
          since its hidden by prelude. *)
       Z.to_int (Z.of_string i)
@@ -277,9 +269,9 @@ module DolmenIntf = struct
 
     let rem_u = DTerm.Bitv.urem
 
-    let rotate_left t1 t2 = DTerm.Bitv.rotate_left (int_of_term t1) t2
+    let rotate_left t1 t2 = DTerm.Bitv.rotate_left (int_of_term t2) t1
 
-    let rotate_right t1 t2 = DTerm.Bitv.rotate_right (int_of_term t1) t2
+    let rotate_right t1 t2 = DTerm.Bitv.rotate_right (int_of_term t2) t1
 
     let lt t1 t2 = DTerm.Bitv.slt t1 t2
 
@@ -347,9 +339,9 @@ module DolmenIntf = struct
 
     let to_sbv n ~rm fp = DTerm.Float.to_sbv n rm fp
 
-    let of_ieee_bv _eb _sb _bv = assert false
+    let of_ieee_bv eb sb bv = DTerm.Float.ieee_format_to_fp eb sb bv
 
-    let to_ieee_bv _fp = assert false
+    let to_ieee_bv = None
   end
 
   module Func = struct

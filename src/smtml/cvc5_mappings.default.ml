@@ -10,8 +10,6 @@ module Fresh_cvc5 () = struct
     let caches_consts = false
 
     let is_available = true
-
-    let has_to_ieee_bv = false
   end
 
   type ty = Sort.sort
@@ -411,7 +409,7 @@ module Fresh_cvc5 () = struct
       let op = Op.mk_op tm Kind.Floatingpoint_to_fp_from_ieee_bv [| i1; i2 |] in
       Term.mk_term_op tm op [| t |]
 
-    let to_ieee_bv _ = assert false
+    let to_ieee_bv = None
   end
 
   module Func = struct
@@ -425,7 +423,8 @@ module Fresh_cvc5 () = struct
     let get_symbols _ =
       Fmt.failwith "Cvc5_mappings: get_symbols not implemented"
 
-    let eval ?completion:_ solver term = Some (Solver.get_value solver term)
+    let eval ?ctx:_ ?completion:_ solver term =
+      Some (Solver.get_value solver term)
   end
 
   module Solver = struct
@@ -436,7 +435,7 @@ module Fresh_cvc5 () = struct
       | Unsat_core ->
         Solver.set_option slv "produce-unsat-cores" (string_of_bool v)
       | Ematching -> Solver.set_option slv "e-matching" (string_of_bool v)
-      | Parallel | Num_threads -> ()
+      | Parallel | Num_threads | Debug -> ()
 
     let set_params slv params =
       List.iter
