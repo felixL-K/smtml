@@ -357,12 +357,9 @@ let raw_binop ty op hte1 hte2 = make (Binop (ty, op, hte1, hte2)) [@@inline]
 let rec binop ty op hte1 hte2 =
   match (op, view hte1, view hte2) with
   | Ty.Binop.(String_in_re | Regexp_range), _, _ -> raw_binop ty op hte1 hte2
-  | Ty.Binop.String_contains, _, _ when equal hte2 (make (Val (Str ""))) ->
-    make (Val True)
-  | Ty.Binop.String_prefix, _, _ when equal hte2 (make (Val (Str ""))) ->
-    make (Val True)
-  | Ty.Binop.String_suffix, _, _ when equal hte2 (make (Val (Str ""))) ->
-    make (Val True)
+  | Ty.Binop.String_contains, _, Val (Str "") -> make (Val True)
+  | Ty.Binop.String_prefix, _, Val (Str "") -> make (Val True)
+  | Ty.Binop.String_suffix, _, Val (Str "") -> make (Val True)
   | op, Val v1, Val v2 -> value (Eval.binop ty op v1 v2)
   | Sub, Ptr { base = b1; offset = os1 }, Ptr { base = b2; offset = os2 } ->
     if Int32.equal b1 b2 then binop ty Sub os1 os2
@@ -517,19 +514,15 @@ let cvtop ty op hte =
   | _, Val v -> value (Eval.cvtop ty op v)
   | String_to_float, Cvtop (Ty_real, ToString, real) -> real
   | Reinterpret_float, Cvtop (Ty_real, Reinterpret_int, e1) -> e1
-  | Reinterpret_float, Cvtop (Ty_fp 32, Reinterpret_int, e1) -> e1
-  | Reinterpret_float, Cvtop (Ty_fp 64, Reinterpret_int, e1) -> e1
+  | Reinterpret_float, Cvtop (Ty_fp n, Reinterpret_int, e) ->
+    assert (match ty with Ty_bitv m -> n = m | _ -> false);
+    e
   | Reinterpret_int, Cvtop (Ty_int, Reinterpret_float, e1) -> e1
-  | Reinterpret_int, Cvtop (Ty_bitv 32, Reinterpret_float, e1) -> e1
-  | Reinterpret_int, Cvtop (Ty_bitv 64, Reinterpret_float, e1) -> e1
+  | Reinterpret_int, Cvtop (Ty_bitv m, Reinterpret_float, e) ->
+    assert (match ty with Ty_fp n -> n = m | _ -> false);
+    e
   | ToString, Cvtop (_, OfString, e1) -> e1
-  | OfString, Cvtop (_, ToString, e1) -> e1
   | ToBool, Cvtop (_, OfBool, e1) -> e1
-  | OfBool, Cvtop (_, ToBool, e1) -> e1
-  | PromoteF32, Cvtop (_, DemoteF64, e1) -> e1
-  | DemoteF64, Cvtop (_, PromoteF32, e1) -> e1
-  | Reinterpret_int, Cvtop (_, Reinterpret_float, e1) -> e1
-  | Reinterpret_float, Cvtop (_, Reinterpret_int, e1) -> e1
   | Zero_extend 0, _ -> hte
   | Sign_extend 0, _ -> hte
   | String_from_code, Cvtop (_, String_to_code, e1) -> e1
