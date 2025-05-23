@@ -357,9 +357,11 @@ let raw_binop ty op hte1 hte2 = make (Binop (ty, op, hte1, hte2)) [@@inline]
 let rec binop ty op hte1 hte2 =
   match (op, view hte1, view hte2) with
   | Ty.Binop.(String_in_re | Regexp_range), _, _ -> raw_binop ty op hte1 hte2
-  | Ty.Binop.String_contains, _, Val (Str "") -> make (Val True)
-  | Ty.Binop.String_prefix, _, Val (Str "") -> make (Val True)
-  | Ty.Binop.String_suffix, _, Val (Str "") -> make (Val True)
+  | ( ( Ty.Binop.String_contains | Ty.Binop.String_prefix
+      | Ty.Binop.String_suffix )
+    , _
+    , Val (Str "") ) ->
+    make (Val True)
   | op, Val v1, Val v2 -> value (Eval.binop ty op v1 v2)
   | Sub, Ptr { base = b1; offset = os1 }, Ptr { base = b2; offset = os2 } ->
     if Int32.equal b1 b2 then binop ty Sub os1 os2
@@ -382,6 +384,10 @@ let rec binop ty op hte1 hte2 =
     when Bitvector.eqz bv ->
     hte1
   | (Add | Or), _, Val (Bitv bv) when Bitvector.eqz bv -> hte1
+  | Add, _, Val (Real 0.) -> hte1
+  | Add, Val (Real 0.), _ -> hte2
+  | Add, _, Val (Num (F32 0l)) -> hte1
+  | Add, Val (Num (F32 0l)), _ -> hte2
   | (And | Mul), _, Val (Bitv bv) when Bitvector.eqz bv -> hte2
   | And, Val True, _ -> hte2
   | And, _, Val True -> hte1
