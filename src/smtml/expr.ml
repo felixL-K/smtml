@@ -325,7 +325,8 @@ let normalize_eq_or_ne op (ty', e1, e2) =
 let negate_relop (hte : t) : t =
   let e =
     match view hte with
-    | Relop (ty, ((Eq | Ne) as op), e1, e2) -> normalize_eq_or_ne op (ty, e1, e2)
+    | Relop (ty, Eq, e1, e2) -> normalize_eq_or_ne Ne (ty, e1, e2)
+    | Relop (ty, Ne, e1, e2) -> normalize_eq_or_ne Eq (ty, e1, e2)
     | Relop (ty, Lt, e1, e2) -> Relop (ty, Le, e2, e1)
     | Relop (ty, LtU, e1, e2) -> Relop (ty, LeU, e2, e1)
     | Relop (ty, Le, e1, e2) -> Relop (ty, Lt, e2, e1)
@@ -468,6 +469,7 @@ let rec relop ty op hte1 hte2 =
     raw_unop Ty_bool Not (raw_unop (Ty_fp prec1) Is_nan hte1)
   | Eq, Ptr { base = b1; offset = os1 }, Ptr { base = b2; offset = os2 } ->
     if Int32.equal b1 b2 then relop Ty_bool Eq os1 os2 else value False
+  (* | Eq, _, _ -> make (normalize_eq_or_ne Eq (ty,hte1,hte2)) *)
   | Ne, Ptr { base = b1; offset = os1 }, Ptr { base = b2; offset = os2 } ->
     if Int32.equal b1 b2 then relop Ty_bool Ne os1 os2 else value True
   | ( (LtU | LeU)
