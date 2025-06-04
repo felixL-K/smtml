@@ -848,7 +848,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         let json_line =
           String.concat "" [ Yojson.Basic.to_string json; "\n" ]
         in
-        let file_path = "/home/intern-fw-03/Documents/queries_log.jsonl" in
+        let file_path = Tmp_log_path.get () in
         Out_channel.with_open_gen [ Open_creat; Open_append; Open_text ]
           0o644 file_path (fun outc ->
           Out_channel.output_string outc json_line )
