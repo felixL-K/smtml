@@ -843,6 +843,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
           `Assoc
             [ ("hash", `String (Fmt.str "%x" (Hashtbl.hash assumption_strings)))
             ; ("query", `List (List.map (fun s -> `String s) assumption_strings))
+            ; ("pid", `String (Int.to_string @@ Unix.getpid ()))
             ]
         in
         let json_line =
