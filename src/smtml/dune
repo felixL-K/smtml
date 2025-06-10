@@ -58,6 +58,7 @@
   (:standard -open Smtml_prelude))
  (libraries
   bos
+  rusage
   cmdliner
   dolmen
   dolmen_type

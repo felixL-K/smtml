@@ -835,7 +835,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
           Stack.push ctx s.ctx;
           M.Solver.add s.solver ~ctx exprs
 
-      let log_query_to_file (assumptions : Expr.t list) : unit =
+      let log_query_to_file ~assumptions ~user_time ~system_time =
         let assumption_strings =
           List.map (fun a -> Fmt.str "%a" Expr.pp a) assumptions
         in
@@ -843,7 +843,9 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
           `Assoc
             [ ("hash", `String (Fmt.str "%x" (Hashtbl.hash assumption_strings)))
             ; ("query", `List (List.map (fun s -> `String s) assumption_strings))
-            ; ("pid", `String (Int.to_string @@ Unix.getpid ()))
+            ; ("pid", `String (string_of_int (Unix.getpid ())))
+            ; ("user_time", `Float user_time)
+            ; ("system_time", `Float system_time)
             ]
         in
         let json_line =
@@ -855,10 +857,18 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         match Stack.top_opt s.ctx with
         | None -> assert false
         | Some ctx ->
-          log_query_to_file assumptions;
-          let ctx, assumptions = encode_exprs ctx assumptions in
+          let ctx, assumptions1 = encode_exprs ctx assumptions in
           s.last_ctx <- Some ctx;
-          M.Solver.check s.solver ~ctx ~assumptions
+
+          let usage_before = Rusage.get Self in
+          let res = M.Solver.check s.solver ~ctx ~assumptions:assumptions1 in
+          let usage_after = Rusage.get Self in
+
+          let user_time = usage_after.utime -. usage_before.utime in
+          let system_time = usage_after.stime -. usage_before.stime in
+          log_query_to_file ~assumptions ~user_time ~system_time;
+
+          res
 
       let model { solver; last_ctx; _ } =
         match last_ctx with
