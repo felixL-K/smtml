@@ -851,7 +851,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         let json_line =
           String.concat "" [ Yojson.Basic.to_string json; "\n" ]
         in
-        Tmp_log_path.write json_line
+        Tmp_log_path.write_line json_line
 
       let check (s : solver) ~assumptions =
         match Stack.top_opt s.ctx with
