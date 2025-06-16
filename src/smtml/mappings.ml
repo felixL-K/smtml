@@ -844,6 +844,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
             [ ("hash", `String (Fmt.str "%x" (Hashtbl.hash assumption_strings)))
             ; ("query", `List (List.map (fun s -> `String s) assumption_strings))
             ; ("pid", `String (string_of_int (Unix.getpid ())))
+            ; ("solver", `String (!Tmp_log_path.solver_name))
             ; ("user_time", `Float user_time)
             ; ("system_time", `Float system_time)
             ]

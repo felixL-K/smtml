@@ -1,9 +1,12 @@
 (* tmp_log_path.ml *)
 let log_out : Gzip.out_channel option ref = ref None
+let solver_name : string ref = ref ""
 
 let mutex : Mutex.t = Mutex.create ()
 
-let init path = log_out := Some (Gzip.open_out ~level:9 path)
+let init path name =
+  log_out := Some (Gzip.open_out ~level:9 path);
+  solver_name := name
 
 let write_line s =
   match !log_out with
