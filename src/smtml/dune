@@ -70,6 +70,7 @@
   scfg
   smtml.prelude
   yojson
+  camlzip
   zarith
   (select
    colibri2_mappings.ml

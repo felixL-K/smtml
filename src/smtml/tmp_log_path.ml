@@ -1,6 +1,8 @@
 (* tmp_log_path.ml *)
 let log_out : Gzip.out_channel option ref = ref None
 
+let mutex : Mutex.t = Mutex.create ()
+
 let init path = log_out := Some (Gzip.open_out ~level:9 path)
 
 let write_line s =
@@ -9,7 +11,9 @@ let write_line s =
   | Some oc ->
     let buffer = String.to_bytes s in
     let len = Bytes.length buffer in
-    Gzip.output oc buffer 0 len
+    Mutex.lock mutex;
+    Gzip.output oc buffer 0 len;
+    Mutex.unlock mutex
 
 let close () =
   match !log_out with
