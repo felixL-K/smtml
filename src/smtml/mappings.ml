@@ -65,7 +65,9 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty_bitv n -> M.Types.bitv n
       | Ty_fp 32 -> f32
       | Ty_fp 64 -> f64
-      | (Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none | Ty_regexp) as ty ->
+      | Ty_roundingMode -> M.Types.roundingMode
+      | Ty_regexp -> M.Types.regexp
+      | (Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none) as ty ->
         Fmt.failwith "Unsupported theory: %a@." Ty.pp ty
 
     let make_symbol (ctx : symbol_ctx) (s : Symbol.t) : symbol_ctx * M.term =
@@ -229,6 +231,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         | Triop.String_extract -> M.String.sub e1 ~pos:e2 ~len:e3
         | String_index -> M.String.index_of e1 ~sub:e2 ~pos:e3
         | String_replace -> M.String.replace e1 ~pattern:e2 ~with_:e3
+        | String_replace_all -> M.String.replace_all e1 ~pattern:e2 ~with_:e3
         | _ ->
           Fmt.failwith {|String: Unsupported triop operator "%a"|} Triop.pp op
 
@@ -271,6 +274,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       let binop op e1 e2 =
         match op with
         | Binop.Regexp_range -> M.Re.range e1 e2
+        | Regexp_inter -> M.Re.inter e1 e2
         | op ->
           Fmt.failwith {|Regexp: Unsupported binop operator "%a"|} Binop.pp op
 
@@ -482,7 +486,13 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         | Unop.Neg -> Float.neg e
         | Abs -> Float.abs e
         | Sqrt -> Float.sqrt ~rm:Float.Rounding_mode.rne e
+        | Is_normal -> Float.is_normal e
+        | Is_subnormal -> Float.is_subnormal e
+        | Is_negative -> Float.is_negative e
+        | Is_positive -> Float.is_positive e
+        | Is_infinite -> Float.is_infinite e
         | Is_nan -> Float.is_nan e
+        | Is_zero -> Float.is_zero e
         | Ceil -> Float.round_to_integral ~rm:Float.Rounding_mode.rtp e
         | Floor -> Float.round_to_integral ~rm:Float.Rounding_mode.rtn e
         | Trunc -> Float.round_to_integral ~rm:Float.Rounding_mode.rtz e
@@ -592,7 +602,8 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty.Ty_bitv 64 -> I64.unop
       | Ty.Ty_fp 32 -> Float32_impl.unop
       | Ty.Ty_fp 64 -> Float64_impl.unop
-      | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none ->
+      | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none
+      | Ty_roundingMode ->
         assert false
 
     let binop = function
@@ -606,7 +617,8 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty.Ty_bitv 64 -> I64.binop
       | Ty.Ty_fp 32 -> Float32_impl.binop
       | Ty.Ty_fp 64 -> Float64_impl.binop
-      | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none ->
+      | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none
+      | Ty_roundingMode ->
         assert false
 
     let triop = function
@@ -619,7 +631,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty.Ty_fp 32 -> Float32_impl.triop
       | Ty.Ty_fp 64 -> Float64_impl.triop
       | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none
-      | Ty_regexp ->
+      | Ty_regexp | Ty_roundingMode ->
         assert false
 
     let relop = function
@@ -633,7 +645,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty.Ty_fp 32 -> Float32_impl.relop
       | Ty.Ty_fp 64 -> Float64_impl.relop
       | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none
-      | Ty_regexp ->
+      | Ty_regexp | Ty_roundingMode ->
         assert false
 
     let cvtop = function
@@ -647,7 +659,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty.Ty_fp 32 -> Float32_impl.cvtop
       | Ty.Ty_fp 64 -> Float64_impl.cvtop
       | Ty.Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none
-      | Ty_regexp ->
+      | Ty_regexp | Ty_roundingMode ->
         assert false
 
     let naryop = function
@@ -656,6 +668,21 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty.Ty_regexp -> Regexp_impl.naryop
       | ty -> Fmt.failwith "Naryop for type \"%a\" not implemented" Ty.pp ty
 
+    let get_rounding_mode ctx rm =
+      match Expr.view rm with
+      | Symbol { name = Simple ("roundNearestTiesToEven" | "RNE"); _ } ->
+        (ctx, M.Float.Rounding_mode.rne)
+      | Symbol { name = Simple ("roundNearestTiesToAway" | "RNA"); _ } ->
+        (ctx, M.Float.Rounding_mode.rna)
+      | Symbol { name = Simple ("roundTowardPositive" | "RTP"); _ } ->
+        (ctx, M.Float.Rounding_mode.rtp)
+      | Symbol { name = Simple ("roundTowardNegative" | "RTN"); _ } ->
+        (ctx, M.Float.Rounding_mode.rtn)
+      | Symbol { name = Simple ("roundTowardZero" | "RTZ"); _ } ->
+        (ctx, M.Float.Rounding_mode.rtz)
+      | Symbol rm -> make_symbol ctx rm
+      | _ -> Fmt.failwith "unknown rouding mode: %a" Expr.pp rm
+
     let rec encode_expr ctx (hte : Expr.t) : symbol_ctx * M.term =
       match Expr.view hte with
       | Val value -> (ctx, v value)
@@ -663,7 +690,45 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         let base' = v (Bitv (Bitvector.of_int32 base)) in
         let ctx, offset' = encode_expr ctx offset in
         (ctx, I32.binop Add base' offset')
+      | Symbol { name = Simple "re.all"; _ } -> (ctx, M.Re.all ())
+      | Symbol { name = Simple "re.none"; _ } -> (ctx, M.Re.none ())
+      | Symbol { name = Simple "re.allchar"; _ } -> (ctx, M.Re.allchar ())
       | Symbol sym -> make_symbol ctx sym
+      (* FIXME: add a way to support building these expressions without apps *)
+      | App ({ name = Simple "fp.add"; _ }, [ rm; a; b ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, b = encode_expr ctx b in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.add ~rm a b)
+      | App ({ name = Simple "fp.sub"; _ }, [ rm; a; b ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, b = encode_expr ctx b in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.sub ~rm a b)
+      | App ({ name = Simple "fp.mul"; _ }, [ rm; a; b ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, b = encode_expr ctx b in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.mul ~rm a b)
+      | App ({ name = Simple "fp.div"; _ }, [ rm; a; b ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, b = encode_expr ctx b in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.div ~rm a b)
+      | App ({ name = Simple "fp.fma"; _ }, [ rm; a; b; c ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, b = encode_expr ctx b in
+        let ctx, c = encode_expr ctx c in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.fma ~rm a b c)
+      | App ({ name = Simple "fp.sqrt"; _ }, [ rm; a ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.sqrt ~rm a)
+      | App ({ name = Simple "fp.roundToIntegral"; _ }, [ rm; a ]) ->
+        let ctx, a = encode_expr ctx a in
+        let ctx, rm = get_rounding_mode ctx rm in
+        (ctx, M.Float.round_to_integral ~rm a)
       | App (sym, args) ->
         let name =
           match Symbol.name sym with
@@ -754,6 +819,9 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       | Ty_bitv 8 ->
         let i8 = M.Interp.to_bitv v 8 in
         Value.Bitv (Bitvector.of_int8 (Int64.to_int i8))
+      | Ty_bitv 16 ->
+        let i16 = M.Interp.to_bitv v 16 in
+        Value.Bitv (Bitvector.of_int16 (Int64.to_int i16))
       | Ty_bitv 32 ->
         let i32 = M.Interp.to_bitv v 32 in
         Value.Bitv (Bitvector.of_int32 (Int64.to_int32 i32))
@@ -767,7 +835,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         let float = M.Interp.to_float v 11 53 in
         Value.Num (F64 (Int64.bits_of_float float))
       | Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none | Ty_regexp
-        ->
+      | Ty_roundingMode ->
         assert false
 
     let value ({ model = m; ctx } : model) (c : Expr.t) : Value.t =

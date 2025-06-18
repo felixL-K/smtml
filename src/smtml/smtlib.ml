@@ -12,12 +12,25 @@ let pp_loc fmt = function
   | None -> ()
   | Some loc -> Fmt.pf fmt "%a: " Loc.print_compact loc
 
+let z_of_string_opt str =
+  match Z.of_string str with
+  | exception Invalid_argument _ -> None
+  | z -> Some z
+
 module Term = struct
   type t = Expr.t
 
+  let fp_of_size f ebits sbits =
+    match (ebits, sbits) with
+    | "8", "24" -> Expr.value (Num (F32 (Int32.bits_of_float f)))
+    | "11", "53" -> Expr.value (Num (F64 (Int64.bits_of_float f)))
+    | _ ->
+      Fmt.failwith "fp_of_size: unsupported %a (fp %a %a)" Fmt.float f
+        Fmt.string ebits Fmt.string sbits
+
   let const ?loc (id : Symbol.t) : t =
     match (Symbol.namespace id, Symbol.name id) with
-    | Sort, Simple name -> (
+    | Sort, Simple name -> begin
       match name with
       | "Int" -> Expr.symbol { id with ty = Ty_int }
       | "Real" -> Expr.symbol { id with ty = Ty_real }
@@ -25,12 +38,17 @@ module Term = struct
       | "String" -> Expr.symbol { id with ty = Ty_str }
       | "Float32" -> Expr.symbol { id with ty = Ty_fp 32 }
       | "Float64" -> Expr.symbol { id with ty = Ty_fp 64 }
-      | _ -> (
+      | "RoundingMode" -> Expr.symbol { id with ty = Ty_roundingMode }
+      | _ -> begin
         match Hashtbl.find_opt custom_sorts name with
+        | Some ty -> Expr.symbol { id with ty }
         | None ->
-          Fmt.failwith "%acould not find sort: %a" pp_loc loc Symbol.pp id
-        | Some ty -> Expr.symbol { id with ty } ) )
-    | Sort, Indexed { basename; indices } -> (
+          Logs.err (fun k ->
+            k "%acould not find sort: %a" pp_loc loc Symbol.pp id );
+          Expr.symbol id
+      end
+    end
+    | Sort, Indexed { basename; indices } -> begin
       match (basename, indices) with
       | "BitVec", [ n ] -> (
         match int_of_string_opt n with
@@ -44,21 +62,38 @@ module Term = struct
         Fmt.failwith "%acould not parse indexed sort:%a %a@." pp_loc loc
           Fmt.string basename
           (Fmt.parens (Fmt.list ~sep:Fmt.sp Fmt.string))
-          indices )
-    | Term, Simple name -> (
+          indices
+    end
+    | Term, Simple name -> begin
       match name with
       | "true" -> Expr.value True
       | "false" -> Expr.value False
-      | _ -> Expr.symbol id )
-    | Term, Indexed { basename = base; indices } -> (
-      match String.(sub base 0 2, sub base 2 (length base - 2), indices) with
-      | "bv", str, [ numbits ] -> begin
-        match (int_of_string_opt str, int_of_string_opt numbits) with
-        | Some n, Some width ->
-          Expr.value (Bitv (Bitvector.make (Z.of_int n) width))
+      | "roundNearestTiesToEven" | "RNE" | "roundNearestTiesToAway" | "RNA"
+      | "roundTowardPositive" | "RTP" | "roundTowardNegative" | "RTN"
+      | "roundTowardZero" | "RTZ" ->
+        Expr.symbol { id with ty = Ty_roundingMode }
+      | "re.all" | "re.allchar" | "re.none" ->
+        Expr.symbol { id with ty = Ty_regexp }
+      | _ -> Expr.symbol id
+    end
+    | Term, Indexed { basename = base; indices } -> begin
+      match (base, indices) with
+      | bv, [ numbits ] when String.starts_with ~prefix:"bv" bv -> begin
+        let str = String.sub bv 2 (String.length bv - 2) in
+        match (z_of_string_opt str, int_of_string_opt numbits) with
+        | Some z, Some width -> Expr.value (Bitv (Bitvector.make z width))
         | (None | Some _), _ -> assert false
       end
-      | _ -> Expr.symbol id )
+      | "+oo", [ ebits; sbits ] -> fp_of_size Float.infinity ebits sbits
+      | "-oo", [ ebits; sbits ] -> fp_of_size Float.neg_infinity ebits sbits
+      | "+zero", [ ebits; sbits ] -> fp_of_size Float.zero ebits sbits
+      | "-zero", [ ebits; sbits ] ->
+        fp_of_size (Float.neg Float.zero) ebits sbits
+      | "NaN", [ ebits; sbits ] -> fp_of_size Float.nan ebits sbits
+      | _ ->
+        Log.debug (fun k -> k "const: unknown %a making app" Symbol.pp id);
+        Expr.symbol id
+    end
     | Attr, Simple _ -> Expr.symbol id
     | Attr, Indexed _ -> assert false
     | Var, _ -> Fmt.failwith "%acould not parse var: %a" pp_loc loc Symbol.pp id
@@ -68,12 +103,12 @@ module Term = struct
   let int ?loc (x : string) =
     match int_of_string_opt x with
     | Some x -> Expr.value (Int x)
-    | None -> Fmt.failwith "%aInvalid int" pp_loc loc
+    | None -> Fmt.failwith "%ainvalid int" pp_loc loc
 
   let real ?loc (x : string) =
     match float_of_string_opt x with
     | Some x -> Expr.value (Real x)
-    | None -> Fmt.failwith "%aInvalid real" pp_loc loc
+    | None -> Fmt.failwith "%ainvalid real" pp_loc loc
 
   let hexa ?loc:_ (h : string) =
     let len = String.length h in
@@ -88,36 +123,29 @@ module Term = struct
       Bytes.to_string bs
     in
     let bv = set b 0 '0' in
-    Expr.value (Str bv)
+    let len = String.length bv in
+    let int = Z.of_string bv in
+    Expr.value (Bitv (Bitvector.make int (len - 2)))
 
   let colon ?loc (symbol : t) (term : t) : t =
     match Expr.view symbol with
     | Symbol s ->
       (* Hack: var bindings are 1 argument lambdas *)
+      Log.debug (fun k -> k "colon: unknown '%a' making app" Expr.pp symbol);
       Expr.app s [ term ]
     | _ ->
       Fmt.failwith "%acould not parse colon: %a %a" pp_loc loc Expr.pp symbol
         Expr.pp term
 
-  let combine_to_int64 sign_bit exponent_bit mantissa_bit =
-    let sign = Int64.of_string sign_bit in
-    let exponent = Int64.of_string exponent_bit in
-    let mantissa = Int64.of_string mantissa_bit in
-    let sign_shifted = Int64.shift_left sign 63 in
-    let exponent_shifted = Int64.shift_left exponent 52 in
-    Int64.logor sign_shifted (Int64.logor exponent_shifted mantissa)
-
-  let combine_to_int32 sign_bit exponent_bit mantissa_bit =
-    let sign = Int32.of_string sign_bit in
-    let exponent = Int32.of_string exponent_bit in
-    let mantissa = Int32.of_string mantissa_bit in
-    let sign_shifted = Int32.shift_left sign 31 in
-    let exponent_shifted = Int32.shift_left exponent 23 in
-    Int32.logor sign_shifted (Int32.logor exponent_shifted mantissa)
+  let make_fp_binop symbol (op : Ty.Binop.t) rm a b =
+    match Expr.view rm with
+    | Symbol { name = Simple "roundNearestTiesToEven"; _ } ->
+      Expr.raw_binop Ty_none op a b
+    | _ -> Expr.app symbol [ rm; a; b ]
 
   let apply ?loc (id : t) (args : t list) : t =
     match Expr.view id with
-    | Symbol ({ namespace = Term; name = Simple name; _ } as symbol) -> (
+    | Symbol ({ namespace = Term; name = Simple name; _ } as symbol) -> begin
       match (name, args) with
       | "-", [ a ] -> Expr.raw_unop Ty_none Neg a
       | "not", [ a ] -> Expr.raw_unop Ty_bool Not a
@@ -152,6 +180,8 @@ module Term = struct
       | "str.substr", [ a; b; c ] -> Expr.triop Ty_str String_extract a b c
       | "str.indexof", [ a; b; c ] -> Expr.triop Ty_str String_index a b c
       | "str.replace", [ a; b; c ] -> Expr.triop Ty_str String_replace a b c
+      | "str.replace_all", [ a; b; c ] ->
+        Expr.triop Ty_str String_replace_all a b c
       | "str.++", n -> Expr.raw_naryop Ty_str Concat n
       | "str.<", [ a; b ] -> Expr.raw_relop Ty_str Lt a b
       | "str.<=", [ a; b ] -> Expr.raw_relop Ty_str Le a b
@@ -165,6 +195,7 @@ module Term = struct
       | "re.opt", [ a ] -> Expr.raw_unop Ty_regexp Regexp_opt a
       | "re.comp", [ a ] -> Expr.raw_unop Ty_regexp Regexp_comp a
       | "re.range", [ a; b ] -> Expr.raw_binop Ty_regexp Regexp_range a b
+      | "re.inter", [ a; b ] -> Expr.raw_binop Ty_regexp Regexp_inter a b
       | "re.union", n -> Expr.raw_naryop Ty_regexp Regexp_union n
       | "re.++", n -> Expr.raw_naryop Ty_regexp Concat n
       | "bvnot", [ a ] -> Expr.raw_unop Ty_none Not a
@@ -189,78 +220,62 @@ module Term = struct
       | "bvsge", [ a; b ] -> Expr.raw_relop Ty_none Ge a b
       | "bvuge", [ a; b ] -> Expr.raw_relop Ty_none GeU a b
       | "concat", [ a; b ] -> Expr.raw_concat a b
-      | "fp", [ s; eb; i ] -> (
-        match (Expr.view s, Expr.view eb, Expr.view i) with
-        | Val (Str sign), Val (Str eb), Val (Str i) -> (
-          match (String.length sign, String.length eb, String.length i) with
-          (* 32 bit float -> sign = 1, eb = 8, i = 24 - 1 = 23  *)
-          | 3, 10, 25 -> Expr.value (Num (F32 (combine_to_int32 sign eb i)))
-          (* 64 bit float -> sign = 1, eb = 11, i = 53 - 1 = 52  *)
-          | 3, 13, 54 -> Expr.value (Num (F64 (combine_to_int64 sign eb i)))
-          | _ -> Fmt.failwith "%afp size not supported" pp_loc loc )
-        | _ ->
-          Fmt.failwith "%acould not parse fp: %a %a %a" pp_loc loc Expr.pp s
-            Expr.pp eb Expr.pp i )
+      | ( "fp"
+        , [ { node = Val (Bitv sign); _ }
+          ; { node = Val (Bitv eb); _ }
+          ; { node = Val (Bitv i); _ }
+          ] ) ->
+        let fp = Bitvector.(concat sign (concat eb i)) in
+        let fp_sz = Bitvector.numbits fp in
+        if fp_sz = 32 then Expr.value (Num (F32 (Bitvector.to_int32 fp)))
+        else if fp_sz = 64 then Expr.value (Num (F64 (Bitvector.to_int64 fp)))
+        else Fmt.failwith "%afp size not supported" pp_loc loc
+      | "fp.isNormal", [ a ] -> Expr.raw_unop Ty_none Is_normal a
+      | "fp.isSubnormal", [ a ] -> Expr.raw_unop Ty_none Is_subnormal a
+      | "fp.isNegative", [ a ] -> Expr.raw_unop Ty_none Is_negative a
+      | "fp.isPositive", [ a ] -> Expr.raw_unop Ty_none Is_positive a
+      | "fp.isInfinite", [ a ] -> Expr.raw_unop Ty_none Is_infinite a
+      | "fp.isNaN", [ a ] -> Expr.raw_unop Ty_none Is_nan a
+      | "fp.isZero", [ a ] -> Expr.raw_unop Ty_none Is_zero a
       | "fp.abs", [ a ] -> Expr.raw_unop Ty_none Abs a
       | "fp.neg", [ a ] -> Expr.raw_unop Ty_none Neg a
-      | ( "fp.add"
-        , [ { node = Symbol { name = Simple "roundNearestTiesToEven"; _ }; _ }
-          ; a
-          ; b
-          ] ) ->
-        Expr.raw_binop Ty_none Add a b
-      | ( "fp.sub"
-        , [ { node = Symbol { name = Simple "roundNearestTiesToEven"; _ }; _ }
-          ; a
-          ; b
-          ] ) ->
-        Expr.raw_binop Ty_none Sub a b
-      | ( "fp.mul"
-        , [ { node = Symbol { name = Simple "roundNearestTiesToEven"; _ }; _ }
-          ; a
-          ; b
-          ] ) ->
-        Expr.raw_binop Ty_none Mul a b
-      | ( "fp.div"
-        , [ { node = Symbol { name = Simple "roundNearestTiesToEven"; _ }; _ }
-          ; a
-          ; b
-          ] ) ->
-        Expr.raw_binop Ty_none Div a b
+      | "fp.add", [ rm; a; b ] -> make_fp_binop symbol Add rm a b
+      | "fp.sub", [ rm; a; b ] -> make_fp_binop symbol Sub rm a b
+      | "fp.mul", [ rm; a; b ] -> make_fp_binop symbol Mul rm a b
+      | "fp.div", [ rm; a; b ] -> make_fp_binop symbol Div rm a b
       | ( "fp.sqrt"
         , [ { node = Symbol { name = Simple "roundNearestTiesToEven"; _ }; _ }
           ; a
           ] ) ->
         Expr.raw_unop Ty_none Sqrt a
       | "fp.rem", [ a; b ] -> Expr.raw_binop Ty_none Rem a b
-      | ( "fp.roundToIntegral"
-        , [ { node = Symbol { name = Simple "roundNearestTiesToEven"; _ }; _ }
-          ; a
-          ] ) ->
-        Expr.raw_unop Ty_none Nearest a
-      | ( "fp.roundToIntegral"
-        , [ { node = Symbol { name = Simple "roundTowardPositive"; _ }; _ }; a ]
-        ) ->
-        Expr.raw_unop Ty_none Ceil a
-      | ( "fp.roundToIntegral"
-        , [ { node = Symbol { name = Simple "roundTowardNegative"; _ }; _ }; a ]
-        ) ->
-        Expr.raw_unop Ty_none Floor a
-      | ( "fp.roundToIntegral"
-        , [ { node = Symbol { name = Simple "roundTowardZero"; _ }; _ }; a ] )
-        ->
-        Expr.raw_unop Ty_none Trunc a
+      | "fp.roundToIntegral", [ rm; a ] -> begin
+        match Expr.view rm with
+        | Symbol { name = Simple "roundNearestTiesToEven"; _ } ->
+          Expr.raw_unop Ty_none Nearest a
+        | Symbol { name = Simple "roundTowardPositive"; _ } ->
+          Expr.raw_unop Ty_none Ceil a
+        | Symbol { name = Simple "roundTowardNegative"; _ } ->
+          Expr.raw_unop Ty_none Floor a
+        | Symbol { name = Simple "roundTowardZero"; _ } ->
+          Expr.raw_unop Ty_none Trunc a
+        | _ -> Expr.app symbol args
+      end
       | "fp.min", [ a; b ] -> Expr.raw_binop Ty_none Min a b
       | "fp.max", [ a; b ] -> Expr.raw_binop Ty_none Max a b
-      | "fp.leq", [ a; b ] -> Expr.raw_relop Ty_bool Le a b
-      | "fp.lt", [ a; b ] -> Expr.raw_relop Ty_bool Lt a b
-      | "fp.geq", [ a; b ] -> Expr.raw_relop Ty_bool Ge a b
-      | "fp.gt", [ a; b ] -> Expr.raw_relop Ty_bool Gt a b
-      | "fp.eq", [ a; b ] -> Expr.raw_relop Ty_bool Eq a b
-      | _, l -> Expr.app symbol l )
+      | "fp.leq", [ a; b ] -> Expr.raw_relop Ty_none Le a b
+      | "fp.lt", [ a; b ] -> Expr.raw_relop Ty_none Lt a b
+      | "fp.geq", [ a; b ] -> Expr.raw_relop Ty_none Ge a b
+      | "fp.gt", [ a; b ] -> Expr.raw_relop Ty_none Gt a b
+      | "fp.eq", [ a; b ] -> Expr.raw_relop Ty_none Eq a b
+      | _ ->
+        Log.debug (fun k -> k "apply: unknown %a making app" Symbol.pp symbol);
+        Expr.app symbol args
+    end
     | Symbol ({ name = Simple _; namespace = Attr; _ } as attr) ->
+      Log.debug (fun k -> k "apply: unknown %a making app" Symbol.pp attr);
       Expr.app attr args
-    | Symbol { name = Indexed { basename; indices }; _ } -> (
+    | Symbol { name = Indexed { basename; indices }; _ } -> begin
       match (basename, indices, args) with
       | "extract", [ h; l ], [ a ] ->
         let high =
@@ -289,9 +304,21 @@ module Term = struct
           match int_of_string_opt i2 with None -> assert false | Some i2 -> i2
         in
         Expr.raw_unop Ty_regexp (Regexp_loop (i1, i2)) a
+      | ( "to_fp"
+        , [ "11"; "53" ]
+        , [ { node =
+                Symbol { name = Simple ("roundNearestTiesToEven" | "RNE"); _ }
+            ; _
+            }
+          ; a
+          ] ) ->
+        Expr.raw_cvtop (Ty_fp 64) PromoteF32 a
       | _ ->
-        Fmt.failwith "%acould not parse indexed app: %a" pp_loc loc Expr.pp id )
-    | Symbol id -> Expr.app id args
+        Fmt.failwith "%acould not parse indexed app: %a" pp_loc loc Expr.pp id
+    end
+    | Symbol id ->
+      Log.debug (fun k -> k "apply: unknown %a making app" Symbol.pp id);
+      Expr.app id args
     | _ ->
       (* Ids can only be symbols. Any other expr here is super wrong *)
       assert false

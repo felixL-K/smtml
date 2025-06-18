@@ -19,6 +19,7 @@ type t =
   | Ty_str
   | Ty_unit
   | Ty_regexp
+  | Ty_roundingMode
 
 let discr = function
   | Ty_app -> 0
@@ -30,8 +31,9 @@ let discr = function
   | Ty_str -> 6
   | Ty_unit -> 7
   | Ty_regexp -> 8
-  | Ty_bitv n -> 9 + n
-  | Ty_fp n -> 10 + n
+  | Ty_roundingMode -> 9
+  | Ty_bitv n -> 10 + n
+  | Ty_fp n -> 11 + n
 
 let compare t1 t2 = compare (discr t1) (discr t2)
 
@@ -49,6 +51,7 @@ let pp fmt = function
   | Ty_unit -> Fmt.string fmt "unit"
   | Ty_none -> Fmt.string fmt "none"
   | Ty_regexp -> Fmt.string fmt "regexp"
+  | Ty_roundingMode -> Fmt.string fmt "RoudingMode"
 
 let string_of_type (ty : t) : string = Fmt.str "%a" pp ty
 
@@ -62,6 +65,7 @@ let of_string = function
   | "unit" -> Ok Ty_unit
   | "none" -> Ok Ty_none
   | "regexp" -> Ok Ty_regexp
+  | "RoundingMode" -> Ok Ty_roundingMode
   | s ->
     if String.starts_with ~prefix:"i" s then begin
       let s = String.sub s 1 (String.length s - 1) in
@@ -85,7 +89,8 @@ let size (ty : t) : int =
   match ty with
   | Ty_bitv n | Ty_fp n -> n / 8
   | Ty_int | Ty_bool -> 4
-  | Ty_real | Ty_str | Ty_list | Ty_app | Ty_unit | Ty_none | Ty_regexp ->
+  | Ty_real | Ty_str | Ty_list | Ty_app | Ty_unit | Ty_none | Ty_regexp
+  | Ty_roundingMode ->
     assert false
 
 module Unop = struct
@@ -98,7 +103,13 @@ module Unop = struct
     (* Float *)
     | Abs
     | Sqrt
+    | Is_normal
+    | Is_subnormal
+    | Is_negative
+    | Is_positive
+    | Is_infinite
     | Is_nan
+    | Is_zero
     | Ceil
     | Floor
     | Trunc
@@ -125,7 +136,13 @@ module Unop = struct
     | Ctz, Ctz
     | Abs, Abs
     | Sqrt, Sqrt
+    | Is_normal, Is_normal
+    | Is_subnormal, Is_subnormal
+    | Is_negative, Is_negative
+    | Is_positive, Is_positive
+    | Is_infinite, Is_infinite
     | Is_nan, Is_nan
+    | Is_zero, Is_zero
     | Ceil, Ceil
     | Floor, Floor
     | Trunc, Trunc
@@ -141,9 +158,11 @@ module Unop = struct
     | Regexp_opt, Regexp_opt
     | Regexp_comp, Regexp_comp ->
       true
-    | ( ( Neg | Not | Clz | Popcnt | Ctz | Abs | Sqrt | Is_nan | Ceil | Floor
-        | Trunc | Nearest | Head | Tail | Reverse | Length | Trim | Regexp_star
-        | Regexp_loop _ | Regexp_plus | Regexp_opt | Regexp_comp )
+    | ( ( Neg | Not | Clz | Popcnt | Ctz | Abs | Sqrt | Is_normal | Is_subnormal
+        | Is_negative | Is_positive | Is_infinite | Is_nan | Is_zero | Ceil
+        | Floor | Trunc | Nearest | Head | Tail | Reverse | Length | Trim
+        | Regexp_star | Regexp_loop _ | Regexp_plus | Regexp_opt | Regexp_comp
+          )
       , _ ) ->
       false
 
@@ -155,7 +174,13 @@ module Unop = struct
     | Popcnt -> Fmt.string fmt "popcnt"
     | Abs -> Fmt.string fmt "abs"
     | Sqrt -> Fmt.string fmt "sqrt"
+    | Is_normal -> Fmt.string fmt "isNormal"
+    | Is_subnormal -> Fmt.string fmt "isSubnormal"
+    | Is_negative -> Fmt.string fmt "isNegative"
+    | Is_positive -> Fmt.string fmt "isPositive"
+    | Is_infinite -> Fmt.string fmt "isInfinite"
     | Is_nan -> Fmt.string fmt "is_nan"
+    | Is_zero -> Fmt.string fmt "isZero"
     | Ceil -> Fmt.string fmt "ceil"
     | Floor -> Fmt.string fmt "floor"
     | Trunc -> Fmt.string fmt "trunc"
@@ -205,6 +230,7 @@ module Binop = struct
     | String_in_re
     (* Regexp *)
     | Regexp_range
+    | Regexp_inter
 
   let equal o1 o2 =
     match (o1, o2) with
@@ -236,12 +262,14 @@ module Binop = struct
     | String_contains, String_contains
     | String_last_index, String_last_index
     | String_in_re, String_in_re
-    | Regexp_range, Regexp_range ->
+    | Regexp_range, Regexp_range
+    | Regexp_inter, Regexp_inter ->
       true
     | ( ( Add | Sub | Mul | Div | DivU | Rem | RemU | Shl | ShrA | ShrL | And
         | Or | Xor | Implies | Pow | Min | Max | Copysign | Rotl | Rotr | At
         | List_cons | List_append | String_prefix | String_suffix
-        | String_contains | String_last_index | String_in_re | Regexp_range )
+        | String_contains | String_last_index | String_in_re | Regexp_range
+        | Regexp_inter )
       , _ ) ->
       false
 
@@ -275,6 +303,7 @@ module Binop = struct
     | String_last_index -> Fmt.string fmt "last_indexof"
     | String_in_re -> Fmt.string fmt "in_re"
     | Regexp_range -> Fmt.string fmt "range"
+    | Regexp_inter -> Fmt.string fmt "inter"
 end
 
 module Relop = struct
@@ -326,6 +355,7 @@ module Triop = struct
     | String_extract
     | String_replace
     | String_index
+    | String_replace_all
 
   let equal op1 op2 =
     match (op1, op2) with
@@ -333,9 +363,12 @@ module Triop = struct
     | List_set, List_set
     | String_extract, String_extract
     | String_replace, String_replace
-    | String_index, String_index ->
+    | String_index, String_index
+    | String_replace_all, String_replace_all ->
       true
-    | (Ite | List_set | String_extract | String_replace | String_index), _ ->
+    | ( ( Ite | List_set | String_extract | String_replace | String_index
+        | String_replace_all )
+      , _ ) ->
       false
 
   let pp fmt = function
@@ -343,6 +376,7 @@ module Triop = struct
     | String_extract -> Fmt.string fmt "substr"
     | String_replace -> Fmt.string fmt "replace"
     | String_index -> Fmt.string fmt "indexof"
+    | String_replace_all -> Fmt.string fmt "replace_all"
     | List_set -> Fmt.string fmt "set"
 end
 
