@@ -144,6 +144,8 @@ module DolmenIntf = struct
   module Types = struct
     include DTy
 
+    let regexp = DTy.string_reg_lang
+
     let ty = DTerm.ty
 
     let to_ety (ty : DTy.t) : Ty.t =
@@ -206,9 +208,17 @@ module DolmenIntf = struct
     let index_of t ~sub ~pos = DTerm.String.index_of t sub pos
 
     let replace t ~pattern ~with_ = DTerm.String.replace t pattern with_
+
+    let replace_all t ~pattern ~with_ = DTerm.String.replace_all t pattern with_
   end
 
   module Re = struct
+    let all () = DTerm.String.RegLan.all
+
+    let allchar () = DTerm.String.RegLan.allchar
+
+    let none () = DTerm.String.RegLan.empty
+
     let star = DTerm.String.RegLan.star
 
     let plus = DTerm.String.RegLan.cross
@@ -218,6 +228,8 @@ module DolmenIntf = struct
     let comp = DTerm.String.RegLan.complement
 
     let range = DTerm.String.RegLan.range
+
+    let inter = DTerm.String.RegLan.inter
 
     let loop t i1 i2 = DTerm.String.RegLan.loop i1 i2 t
 
@@ -313,7 +325,19 @@ module DolmenIntf = struct
 
     let sqrt ~rm t = DTerm.Float.sqrt rm t
 
+    let is_normal = DTerm.Float.isNormal
+
+    let is_subnormal = DTerm.Float.isSubnormal
+
+    let is_negative = DTerm.Float.isNegative
+
+    let is_positive = DTerm.Float.isPositive
+
+    let is_infinite = DTerm.Float.isInfinite
+
     let is_nan = DTerm.Float.isNaN
+
+    let is_zero = DTerm.Float.isZero
 
     let round_to_integral ~rm t = DTerm.Float.roundToIntegral rm t
 
@@ -324,6 +348,8 @@ module DolmenIntf = struct
     let mul ~rm t1 t2 = DTerm.Float.mul rm t1 t2
 
     let div ~rm t1 t2 = DTerm.Float.div rm t1 t2
+
+    let fma ~rm a b c = DTerm.Float.fma rm a b c
 
     let le = DTerm.Float.leq
 

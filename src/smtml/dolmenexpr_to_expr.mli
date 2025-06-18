@@ -90,6 +90,10 @@ module DolmenIntf : sig
 
     val float : int -> int -> ty
 
+    val roundingMode : ty
+
+    val regexp : ty
+
     val ty : term -> ty
 
     val to_ety : ty -> Ty.t
@@ -181,9 +185,17 @@ module DolmenIntf : sig
     val index_of : term -> sub:term -> pos:term -> term
 
     val replace : term -> pattern:term -> with_:term -> term
+
+    val replace_all : term -> pattern:term -> with_:term -> term
   end
 
   module Re : sig
+    val allchar : unit -> term
+
+    val all : unit -> term
+
+    val none : unit -> term
+
     val star : term -> term
 
     val plus : term -> term
@@ -193,6 +205,8 @@ module DolmenIntf : sig
     val comp : term -> term
 
     val range : term -> term -> term
+
+    val inter : term -> term -> term
 
     val loop : term -> int -> int -> term
 
@@ -284,6 +298,18 @@ module DolmenIntf : sig
 
     val sqrt : rm:term -> term -> term
 
+    val is_normal : term -> term
+
+    val is_subnormal : term -> term
+
+    val is_negative : term -> term
+
+    val is_positive : term -> term
+
+    val is_infinite : term -> term
+
+    val is_zero : term -> term
+
     val is_nan : term -> term
 
     val round_to_integral : rm:term -> term -> term
@@ -301,6 +327,8 @@ module DolmenIntf : sig
     val max : term -> term -> term
 
     val rem : term -> term -> term
+
+    val fma : rm:term -> term -> term -> term -> term
 
     val eq : term -> term -> term
 

@@ -77,6 +77,10 @@ module Fresh_cvc5 () = struct
 
     let float ebits sbits = Sort.mk_fp_sort tm ebits sbits
 
+    let roundingMode = Sort.mk_rm_sort tm
+
+    let regexp = Sort.mk_bool_sort tm
+
     let ty t = Term.sort t
 
     let to_ety _ = assert false
@@ -199,9 +203,18 @@ module Fresh_cvc5 () = struct
 
     let replace t1 ~pattern ~with_ =
       Term.mk_term tm Kind.String_replace [| t1; pattern; with_ |]
+
+    let replace_all t1 ~pattern ~with_ =
+      Term.mk_term tm Kind.String_replace_all [| t1; pattern; with_ |]
   end
 
   module Re = struct
+    let allchar () = Term.mk_term tm Kind.Regexp_allchar [||]
+
+    let all () = Term.mk_term tm Kind.Regexp_all [||]
+
+    let none () = Term.mk_term tm Kind.Regexp_none [||]
+
     let star t = Term.mk_term tm Kind.Regexp_star [| t |]
 
     let plus t = Term.mk_term tm Kind.Regexp_plus [| t |]
@@ -211,6 +224,8 @@ module Fresh_cvc5 () = struct
     let comp t = Term.mk_term tm Kind.Regexp_complement [| t |]
 
     let range t1 t2 = Term.mk_term tm Kind.Regexp_range [| t1; t2 |]
+
+    let inter t1 t2 = Term.mk_term tm Kind.Regexp_inter [| t1; t2 |]
 
     let loop t i1 i2 =
       let op = Op.mk_op tm Kind.Regexp_loop [| i1; i2 |] in
@@ -356,7 +371,19 @@ module Fresh_cvc5 () = struct
 
     let sqrt ~rm t = Term.mk_term tm Kind.Floatingpoint_sqrt [| rm; t |]
 
+    let is_normal t = Term.mk_term tm Kind.Floatingpoint_is_normal [| t |]
+
+    let is_subnormal t = Term.mk_term tm Kind.Floatingpoint_is_subnormal [| t |]
+
+    let is_negative t = Term.mk_term tm Kind.Floatingpoint_is_neg [| t |]
+
+    let is_positive t = Term.mk_term tm Kind.Floatingpoint_is_pos [| t |]
+
+    let is_infinite t = Term.mk_term tm Kind.Floatingpoint_is_inf [| t |]
+
     let is_nan t = Term.mk_term tm Kind.Floatingpoint_is_nan [| t |]
+
+    let is_zero t = Term.mk_term tm Kind.Floatingpoint_is_zero [| t |]
 
     let round_to_integral ~rm t =
       Term.mk_term tm Kind.Floatingpoint_rti [| rm; t |]
@@ -372,6 +399,8 @@ module Fresh_cvc5 () = struct
     let min t1 t2 = Term.mk_term tm Kind.Floatingpoint_min [| t1; t2 |]
 
     let max t1 t2 = Term.mk_term tm Kind.Floatingpoint_max [| t1; t2 |]
+
+    let fma ~rm a b c = Term.mk_term tm Kind.Floatingpoint_fma [| rm; a; b; c |]
 
     let rem t1 t2 = Term.mk_term tm Kind.Floatingpoint_rem [| t1; t2 |]
 

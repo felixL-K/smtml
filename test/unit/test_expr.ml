@@ -614,6 +614,16 @@ let test_simplify_concat_i32_symbol _ =
   let concated = Expr.concat d (Expr.concat c (Expr.concat b a)) in
   check concated x
 
+let test_fp_nan_not_geffects _ =
+  let open Infix in
+  let ty = Ty.Ty_fp 32 in
+  let x = symbol "x" ty in
+  let y = symbol "y" ty in
+  (* x != x makes isNaN(x) *)
+  let expr = Expr.unop Ty_bool Not (Expr.relop ty Ge x y) in
+  let expected = Expr.unop Ty_bool Not (Expr.relop ty Le y x) in
+  check expr expected
+
 let test_simplify_concat =
   [ "test_simplify_concat_i32_i32" >:: test_simplify_concat_i32_i32
   ; "test_simplify_concat_i32_symbol" >:: test_simplify_concat_i32_symbol
@@ -792,6 +802,7 @@ let test_simplify_normalize =
 
 let test_simplify =
   [ "test_simplify_assoc" >:: test_simplify_assoc
+  ; "test_fp_nan_not_geffects" >:: test_fp_nan_not_geffects
   ; "test_simplify_extract" >::: test_simplify_extract
   ; "test_simplify_concat" >::: test_simplify_concat
   ; "test_simplify_normalize" >::: test_simplify_normalize

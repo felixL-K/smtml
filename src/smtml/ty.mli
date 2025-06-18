@@ -29,6 +29,7 @@ type t =
   | Ty_str  (** String type. *)
   | Ty_unit  (** Unit type. *)
   | Ty_regexp  (** Regular expression type. *)
+  | Ty_roundingMode
 
 (** {1 Type Comparison} *)
 
@@ -70,7 +71,13 @@ module Unop : sig
     (* Float operations *)
     | Abs  (** Absolute value. *)
     | Sqrt  (** Square root. *)
+    | Is_normal
+    | Is_subnormal
+    | Is_negative
+    | Is_positive
+    | Is_infinite
     | Is_nan  (** Check if NaN. *)
+    | Is_zero
     | Ceil  (** Ceiling. *)
     | Floor  (** Floor. *)
     | Trunc  (** Truncate. *)
@@ -136,6 +143,7 @@ module Binop : sig
     | String_in_re  (** Check if a string matches a regular expression. *)
     (* Regexp operations *)
     | Regexp_range  (** Range of characters. *)
+    | Regexp_inter  (** Intersection of regular expressions. *)
 
   (** [equal op1 op2] checks if binary operations [op1] and [op2] are equal. *)
   val equal : t -> t -> bool
@@ -184,6 +192,9 @@ module Triop : sig
       (** Replace a substring. (str.replace String String String String) *)
     | String_index
       (** Find the index of a substring. (str.indexof String String Int Int) *)
+    | String_replace_all
+      (** Replace all occurrences of a substring. (str.replace_all String String
+          String String) *)
 
   (** [equal op1 op2] checks if ternary operations [op1] and [op2] are equal. *)
   val equal : t -> t -> bool

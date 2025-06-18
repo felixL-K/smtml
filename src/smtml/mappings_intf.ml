@@ -120,6 +120,11 @@ module type M = sig
         significand width [s]. *)
     val float : int -> int -> ty
 
+    val roundingMode : ty
+
+    (** [regexp] represents the regular expression type. *)
+    val regexp : ty
+
     (** [ty t] retrieves the type of the term [t]. *)
     val ty : term -> ty
 
@@ -311,11 +316,25 @@ module type M = sig
     (** [replace t ~pattern ~with_] constructs the string term resulting from
         replacing [pattern] with [with_] in [t]. *)
     val replace : term -> pattern:term -> with_:term -> term
+
+    (** [replace_all t ~pattern ~with_] constructs the string term resulting
+        from replacing all occurrences of [pattern] with [with_] in [t]. *)
+    val replace_all : term -> pattern:term -> with_:term -> term
   end
 
   (** {2 Regular Expression Operations} *)
 
   module Re : sig
+    (** [all] constructs the regular expression that matches all. *)
+    val all : unit -> term
+
+    (** [allchar] constructs the regular expression that matches any character.
+    *)
+    val allchar : unit -> term
+
+    (** [empty] constructs the empty regular expression. *)
+    val none : unit -> term
+
     (** [star t] constructs the Kleene star of the regular expression term [t].
     *)
     val star : term -> term
@@ -334,6 +353,10 @@ module type M = sig
     (** [range t1 t2] constructs a regular expression term matching characters
         in the range from [t1] to [t2]. *)
     val range : term -> term -> term
+
+    (** [inter t1 t2] constructs the intersection of the regular expression
+        terms [t1] and [t2]. *)
+    val inter : term -> term -> term
 
     (** [loop t min max] constructs a regular expression term matching [t]
         repeated between [min] and [max] times. *)
@@ -496,6 +519,18 @@ module type M = sig
         using the rounding mode [rm]. *)
     val sqrt : rm:term -> term -> term
 
+    val is_normal : term -> term
+
+    val is_subnormal : term -> term
+
+    val is_negative : term -> term
+
+    val is_positive : term -> term
+
+    val is_infinite : term -> term
+
+    val is_zero : term -> term
+
     (** [is_nan t] checks if the floating-point term [t] is NaN. *)
     val is_nan : term -> term
 
@@ -526,6 +561,9 @@ module type M = sig
     (** [max t1 t2] constructs the maximum of the floating-point terms [t1] and
         [t2]. *)
     val max : term -> term -> term
+
+    (** [fma ~rm a b c] *)
+    val fma : rm:term -> term -> term -> term -> term
 
     (** [rem t1 t2] constructs the remainder of the floating-point terms [t1]
         and [t2]. *)

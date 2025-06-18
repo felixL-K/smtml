@@ -79,6 +79,10 @@ module Fresh_bitwuzla (B : Bitwuzla_cxx.S) : M = struct
 
     let float ebits sbits = mk_fp_sort ebits sbits
 
+    let roundingMode = mk_rm_sort ()
+
+    let regexp = mk_bool_sort ()
+
     let ty t = Term.sort t
 
     let to_ety _ = Fmt.failwith "Bitwuzla_mappings: to_ety not implemented"
@@ -217,9 +221,18 @@ module Fresh_bitwuzla (B : Bitwuzla_cxx.S) : M = struct
 
     let replace _ ~pattern:_ ~with_:_ =
       Fmt.failwith "Bitwuzla_mappings: String.replace not implemented"
+
+    let replace_all _ ~pattern:_ ~with_:_ =
+      Fmt.failwith "Bitwuzla_mappings: String.replace_all not implemented"
   end
 
   module Re = struct
+    let allchar _ = Fmt.failwith "Bitwuzla_mappings: Re.allchar not implemented"
+
+    let all _ = Fmt.failwith "Bitwuzla_mappings: Re.all not implemented"
+
+    let none _ = Fmt.failwith "Bitwuzla_mappings: Re.none not implemented"
+
     let star _ = Fmt.failwith "Bitwuzla_mappings: Re.star not implemented"
 
     let plus _ = Fmt.failwith "Bitwuzla_mappings: Re.plus not implemented"
@@ -229,6 +242,8 @@ module Fresh_bitwuzla (B : Bitwuzla_cxx.S) : M = struct
     let comp _ = Fmt.failwith "Bitwuzla_mappings: Re.comp not implemented"
 
     let range _ = Fmt.failwith "Bitwuzla_mappings: Re.range not implemented"
+
+    let inter _ = Fmt.failwith "Bitwuzla_mappings: Re.inter not implemented"
 
     let loop _ = Fmt.failwith "Bitwuzla_mappings: Re.loop not implemented"
 
@@ -370,7 +385,19 @@ module Fresh_bitwuzla (B : Bitwuzla_cxx.S) : M = struct
 
     let sqrt ~rm t = mk_term2 Kind.Fp_sqrt rm t
 
+    let is_normal t = mk_term1 Kind.Fp_is_normal t
+
+    let is_subnormal t = mk_term1 Kind.Fp_is_subnormal t
+
+    let is_negative t = mk_term1 Kind.Fp_is_neg t
+
+    let is_positive t = mk_term1 Kind.Fp_is_pos t
+
+    let is_infinite t = mk_term1 Kind.Fp_is_inf t
+
     let is_nan t = mk_term1 Kind.Fp_is_nan t
+
+    let is_zero t = mk_term1 Kind.Fp_is_zero t
 
     let round_to_integral ~rm t = mk_term2 Kind.Fp_rti rm t
 
@@ -385,6 +412,8 @@ module Fresh_bitwuzla (B : Bitwuzla_cxx.S) : M = struct
     let min t1 t2 = mk_term2 Kind.Fp_min t1 t2
 
     let max t1 t2 = mk_term2 Kind.Fp_max t1 t2
+
+    let fma ~rm a b c = mk_term Kind.Fp_fma [| rm; a; b; c |]
 
     let rem t1 t2 = mk_term2 Kind.Fp_rem t1 t2
 
