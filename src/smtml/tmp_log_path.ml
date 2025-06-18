@@ -1,26 +1,29 @@
-(* tmp_log_path.ml *)
-let log_out : Gzip.out_channel option ref = ref None
+
+let log_path : out_channel option ref = ref None
 let solver_name : string ref = ref ""
 
-let mutex : Mutex.t = Mutex.create ()
+let mutex = Mutex.create ()
 
 let init path name =
-  log_out := Some (Gzip.open_out ~level:9 path);
+  log_path := Some (Out_channel.open_gen [ Open_creat; Open_append; Open_text ] 0o644 path);
   solver_name := name
 
-let write_line s =
-  match !log_out with
+let write assumptions user_time system_time =
+  (* 1. Sérialiser les données OCaml directement en bytes *)
+  let data = (assumptions, !solver_name, user_time, system_time) in
+  let bytes = Marshal.to_bytes data [] in
+
+  (* 2. Écrire les bytes dans le flux gzip, avec mutex pour la concurrence *)
+  match !log_path with
   | None -> Fmt.failwith "log not initialized"
   | Some oc ->
-    let buffer = String.to_bytes s in
-    let len = Bytes.length buffer in
     Mutex.lock mutex;
-    Gzip.output oc buffer 0 len;
+    Out_channel.output_bytes oc bytes;
     Mutex.unlock mutex
 
 let close () =
-  match !log_out with
+  match !log_path with
   | None -> ()
   | Some oc ->
-    Gzip.close_out oc;
-    log_out := None
+    Out_channel.close oc;
+    log_path := None
