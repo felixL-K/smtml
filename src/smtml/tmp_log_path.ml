@@ -1,25 +1,26 @@
 
-let log_path : out_channel option ref = ref None
+let log_path : Fpath.t option ref = ref None
 
 let mutex = Mutex.create ()
 
-let init path =
-  log_path := Some (Out_channel.open_gen [ Open_creat; Open_append; Open_text ] 0o644 (Fpath.to_string path))
-
 let write assumptions user_time system_time =
   let data = (assumptions, user_time, system_time) in
-  let bytes = Marshal.to_bytes data [] in
+  let s = Marshal.to_string data [] in
 
-  match !log_path with
-  | None -> Fmt.failwith "log not initialized"
-  | Some oc ->
-    Mutex.lock mutex;
-    Out_channel.output_bytes oc bytes;
-    Mutex.unlock mutex
-
-let close () =
-  match !log_path with
-  | None -> ()
-  | Some oc ->
-    Out_channel.close oc;
-    log_path := None
+  let path =
+    match !log_path with
+    | None ->
+      let env_var = "QUERY_LOG_PATH" in
+      begin match Bos.OS.Env.var env_var with
+        | Some path ->
+          let path = (Fpath.v path) in
+          log_path := Some path;
+          path
+        | None ->
+          Fmt.failwith "Temporary log path not set and QUERY_LOG_PATH is not defined"
+      end
+    | Some oc -> oc
+  in
+  Mutex.lock mutex;
+  match Bos.OS.File.write path s with _ -> ();
+  Mutex.unlock mutex
