@@ -903,8 +903,6 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
           Stack.push ctx s.ctx;
           M.Solver.add s.solver ~ctx exprs
 
-      module Tmp_log = Tmp_log_path
-
       let check (s : solver) ~assumptions =
         match Stack.top_opt s.ctx with
         | None -> assert false

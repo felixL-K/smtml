@@ -86,7 +86,6 @@
    (>= "1.6.0"))
   (zarith
    (>= "1.5"))
-  camlzip
   ;; Doc dependencies
   (odoc
    :with-doc)
