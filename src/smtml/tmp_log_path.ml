@@ -1,26 +1,28 @@
+let log_path : Fpath.t option =
+  let env_var = "QUERY_LOG_PATH" in
+  match Bos.OS.Env.var env_var with Some p -> Some (Fpath.v p) | None -> None
 
-let log_path : Fpath.t option ref = ref None
+let log_entries : (Expr.t list * float * float) list ref = ref []
 
-let mutex = Mutex.create ()
+let write =
+  let mutex = Mutex.create () in
+  fun assumptions user_time system_time ->
+    let entry = (assumptions, user_time, system_time) in
+    Mutex.protect mutex (fun () -> log_entries := entry :: !log_entries)
 
-let write assumptions user_time system_time =
-  let data = (assumptions, user_time, system_time) in
-  let s = Marshal.to_string data [] in
+let close =
+  match log_path with
+  | None -> fun () -> ()
+  | Some path -> (
+    fun () ->
+      let entries = List.rev !log_entries in
+      let bytes = Marshal.to_string entries [] in
+      match Bos.OS.File.write path bytes with
+      | Ok () -> ()
+      | Error (`Msg e) -> Fmt.failwith "Failed to write log: %s" e )
 
-  let path =
-    match !log_path with
-    | None ->
-      let env_var = "QUERY_LOG_PATH" in
-      begin match Bos.OS.Env.var env_var with
-        | Some path ->
-          let path = (Fpath.v path) in
-          log_path := Some path;
-          path
-        | None ->
-          Fmt.failwith "Temporary log path not set and QUERY_LOG_PATH is not defined"
-      end
-    | Some oc -> oc
-  in
-  Mutex.lock mutex;
-  match Bos.OS.File.write path s with _ -> ();
-  Mutex.unlock mutex
+(* let () = Sys.set_signal Sys.sigkill (Sys.Signal_handle (fun _ -> close ())) *)
+let () =
+  at_exit close;
+  Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> close ()));
+  Sys.set_signal Sys.sigterm (Sys.Signal_handle (fun _ -> close ()))
