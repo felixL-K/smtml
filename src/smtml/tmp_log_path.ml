@@ -5,10 +5,13 @@ let log_path : Fpath.t option =
 let log_entries : (Expr.t list * float * float) list ref = ref []
 
 let write =
-  let mutex = Mutex.create () in
-  fun assumptions user_time system_time ->
+  match log_path with
+  | None -> fun _ _ _ -> ()
+  | Some _ -> (
+    let mutex = Mutex.create () in
+    fun assumptions user_time system_time ->
     let entry = (assumptions, user_time, system_time) in
-    Mutex.protect mutex (fun () -> log_entries := entry :: !log_entries)
+    Mutex.protect mutex (fun () -> log_entries := entry :: !log_entries))
 
 let close =
   match log_path with
@@ -24,5 +27,4 @@ let close =
 (* let () = Sys.set_signal Sys.sigkill (Sys.Signal_handle (fun _ -> close ())) *)
 let () =
   at_exit close;
-  Sys.set_signal Sys.sigint (Sys.Signal_handle (fun _ -> close ()));
-  Sys.set_signal Sys.sigterm (Sys.Signal_handle (fun _ -> close ()))
+  Sys.set_signal Sys.sigterm (Sys.Signal_handle (fun _ -> close (); Unix.kill (Unix.getpid ()) 9))
