@@ -71,6 +71,8 @@
   scfg
   smtml.prelude
   yojson
+  mtime
+  mtime.clock.os
   zarith
   (select
    colibri2_mappings.ml

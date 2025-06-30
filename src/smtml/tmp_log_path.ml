@@ -2,15 +2,15 @@ let log_path : Fpath.t option =
   let env_var = "QUERY_LOG_PATH" in
   match Bos.OS.Env.var env_var with Some p -> Some (Fpath.v p) | None -> None
 
-let log_entries : (Expr.t list * float * float) list ref = ref []
+let log_entries : (Expr.t list * int64) list ref = ref []
 
 let write =
   match log_path with
-  | None -> fun _ _ _ -> ()
+  | None -> fun _ _ -> ()
   | Some _ ->
     let mutex = Mutex.create () in
-    fun assumptions user_time system_time ->
-      let entry = (assumptions, user_time, system_time) in
+    fun assumptions time ->
+      let entry = (assumptions, time) in
       Mutex.protect mutex (fun () -> log_entries := entry :: !log_entries)
 
 let close =

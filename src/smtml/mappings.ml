@@ -910,13 +910,11 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
           let ctx, assumptions1 = encode_exprs ctx assumptions in
           s.last_ctx <- Some ctx;
 
-          let usage_before = Rusage.get Self in
+          let usage_before = Mtime_clock.counter () in
           let res = M.Solver.check s.solver ~ctx ~assumptions:assumptions1 in
-          let usage_after = Rusage.get Self in
+          let usage_after = Mtime_clock.count usage_before in
 
-          let ut = usage_after.utime -. usage_before.utime in
-          let st = usage_after.stime -. usage_before.stime in
-          Tmp_log_path.write assumptions ut st;
+          Tmp_log_path.write assumptions (Mtime.Span.to_uint64_ns usage_after);
 
           res
 
