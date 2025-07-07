@@ -100,6 +100,75 @@ let[@inline] view (hte : t) = hte.node
 
 let[@inline] compare (hte1 : t) (hte2 : t) = compare hte1.tag hte2.tag
 
+let rec compare_expr (e1 : t) (e2 : t) =
+  match e1.node,e2.node with
+  | Val v1, Val v2 -> Value.compare v1 v2
+  | Ptr v1, Ptr v2 -> let c = Int32.compare v1.base v2.base in
+                      if c <> 0 then c else compare_expr v1.offset v2.offset
+  | Symbol v1,Symbol v2 -> Symbol.compare v1 v2
+  | List lt1,List lt2 -> List.compare compare_expr lt1 lt2
+  | App (v1, lt1),App (v2, lt2) -> let c = Symbol.compare v1 v2 in
+                                   if c <> 0 then c else
+                                     List.compare compare_expr lt1 lt2
+  | Unop (ty1, tyUnop1, t1),Unop (ty2, tyUnop2, t2) ->
+     let c = Ty.compare ty1 ty2 in
+     if c <> 0 then c else
+       if Ty.Unop.equal tyUnop1 tyUnop2 then compare_expr t1 t2 else 1
+  | Binop (ty1, tyUnop1, t11, t12),Binop (ty2, tyUnop2, t21, t22) ->
+     let c = Ty.compare ty1 ty2 in
+     if c <> 0 then c else
+       if not(Ty.Binop.equal tyUnop1 tyUnop2)
+       then 1
+       else let c = compare_expr t11 t21 in if c <> 0 then c
+                                          else compare_expr t12 t22
+  | Triop (ty1, tyUnop1, t11, t12, t13),Triop (ty2, tyUnop2, t21, t22, t23) ->
+     let c = Ty.compare ty1 ty2 in
+     if c <> 0 then c else
+       if not(Ty.Triop.equal tyUnop1 tyUnop2)
+       then 1
+       else
+         let c = compare_expr t11 t21 in
+         if c <> 0 then c
+         else
+           let c = compare_expr t12 t22 in
+           if c <> 0 then c
+           else compare_expr t13 t23
+  | Relop (ty1, tyRelop1, t11, t12),Relop (ty2, tyRelop2, t21, t22) ->
+     let c = Ty.compare ty1 ty2 in
+     if c <> 0 then c else
+       if not(Ty.Relop.equal tyRelop1 tyRelop2)
+       then 1
+       else
+         let c = compare_expr t11 t21 in
+         if c <> 0 then c
+         else compare_expr t12 t22
+  | Cvtop (ty1, tyCvtop1, t1),Cvtop (ty2, tyCvtop2, t2) ->
+     let c = Ty.compare ty1 ty2 in
+     if c <> 0 then c else
+       if not(Ty.Cvtop.equal tyCvtop1 tyCvtop2)
+       then 1
+       else compare_expr t1 t2
+  | Naryop (ty1, tyNary1, lt1),Naryop (ty2, tyNary2, lt2) ->
+     let c = Ty.compare ty1 ty2 in
+     if c <> 0 then c else
+       if not(Ty.Naryop.equal tyNary1 tyNary2)
+       then 1
+       else List.compare compare_expr lt1 lt2
+  | Extract (t1, i11, i12),Extract (t2, i21, i22) ->
+     let c = compare_expr t1 t2 in
+     if c <> 0 then c
+     else if i11 = i21 then begin if i12 = i22 then 0 else 1 end else 1
+  | Concat (t11, t12),Concat (t21, t22) ->
+     let c = compare_expr t11 t21 in
+     if c <> 0 then c else
+       compare_expr t12 t22
+  | Binder (bind1, lt1, t1),Binder (bind2, lt2, t2) ->
+     if Binder.equal bind1 bind2 then 1 else
+       let c = List.compare compare_expr lt1 lt2 in
+       if c <> 0 then c else
+         compare_expr t1 t2
+  | _ -> 1
+
 let symbol s = make (Symbol s)
 
 (** The return type of an expression *)
