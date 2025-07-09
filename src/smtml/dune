@@ -72,7 +72,7 @@
   smtml.prelude
   yojson
   mtime
-  mtime.clock.os
+  mtime.clock
   zarith
   (select
    colibri2_mappings.ml
