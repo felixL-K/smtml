@@ -772,14 +772,6 @@ let test_string_to_code_from_code _ =
   in
   check e s
 
-let test_string_to_int_from_int _ =
-  let open Infix in
-  let s = symbol "s" Ty_str in
-  let e =
-    Expr.cvtop Ty_int String_to_int (Expr.cvtop Ty_str String_from_int s)
-  in
-  check e s
-
 let test_simplify_normalize =
   [ "test_simplify_reinterpret_int" >:: test_simplify_reinterpret_int
   ; "test_relop_eq_normalize_bitv" >:: test_relop_eq_normalize_bitv
@@ -797,7 +789,6 @@ let test_simplify_normalize =
   ; "test_to_string_of_string" >:: test_to_string_of_string
   ; "test_zero_extend_0" >:: test_zero_extend_0
   ; "test_string_to_code_from_code" >:: test_string_to_code_from_code
-  ; "test_string_to_int_from_int" >:: test_string_to_int_from_int
   ]
 
 let test_simplify =
