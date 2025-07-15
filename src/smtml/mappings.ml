@@ -40,10 +40,6 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
 
     let f64 = M.Types.float 11 53
 
-    let int2str = M.Func.make "int_to_string" [ M.Types.int ] M.Types.string
-
-    let str2int = M.Func.make "string_to_int" [ M.Types.string ] M.Types.int
-
     let real2str = M.Func.make "real_to_string " [ M.Types.real ] M.Types.string
 
     let str2real = M.Func.make "string_to_real" [ M.Types.string ] M.Types.real
@@ -151,9 +147,7 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
 
       let cvtop op e =
         match op with
-        | Cvtop.ToString -> M.Func.apply int2str [ e ]
-        | OfString -> M.Func.apply str2int [ e ]
-        | Reinterpret_float -> M.Real.to_int e
+        | Cvtop.Reinterpret_float -> M.Real.to_int e
         | op ->
           Fmt.failwith {|Int: Unsupported cvtop operator "%a"|} Cvtop.pp op
     end
@@ -687,9 +681,9 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
       match Expr.view hte with
       | Val value -> (ctx, v value)
       | Ptr { base; offset } ->
-        let base' = v (Bitv (Bitvector.of_int32 base)) in
-        let ctx, offset' = encode_expr ctx offset in
-        (ctx, I32.binop Add base' offset')
+        let base = v (Bitv base) in
+        let ctx, offset = encode_expr ctx offset in
+        (ctx, I32.binop Add base offset)
       | Symbol { name = Simple "re.all"; _ } -> (ctx, M.Re.all ())
       | Symbol { name = Simple "re.none"; _ } -> (ctx, M.Re.none ())
       | Symbol { name = Simple "re.allchar"; _ } -> (ctx, M.Re.allchar ())
@@ -812,29 +806,19 @@ module Make (M_with_make : M_with_make) : S_with_fresh = struct
         Value.Str str
       | Ty_bitv 1 ->
         let b = M.Interp.to_bitv v 1 in
-        if Int64.equal b 1L then Value.True
+        if Z.equal b Z.one then Value.True
         else (
-          assert (Int64.equal b 0L);
+          assert (Z.equal b Z.zero);
           Value.False )
-      | Ty_bitv 8 ->
-        let i8 = M.Interp.to_bitv v 8 in
-        Value.Bitv (Bitvector.of_int8 (Int64.to_int i8))
-      | Ty_bitv 16 ->
-        let i16 = M.Interp.to_bitv v 16 in
-        Value.Bitv (Bitvector.of_int16 (Int64.to_int i16))
-      | Ty_bitv 32 ->
-        let i32 = M.Interp.to_bitv v 32 in
-        Value.Bitv (Bitvector.of_int32 (Int64.to_int32 i32))
-      | Ty_bitv 64 ->
-        let i64 = M.Interp.to_bitv v 64 in
-        Value.Bitv (Bitvector.of_int64 i64)
+      | Ty_bitv m ->
+        Value.Bitv (Bitvector.make (M.Interp.to_bitv v m) m)
       | Ty_fp 32 ->
         let float = M.Interp.to_float v 8 24 in
         Value.Num (F32 (Int32.bits_of_float float))
       | Ty_fp 64 ->
         let float = M.Interp.to_float v 11 53 in
         Value.Num (F64 (Int64.bits_of_float float))
-      | Ty_bitv _ | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none | Ty_regexp
+      | Ty_fp _ | Ty_list | Ty_app | Ty_unit | Ty_none | Ty_regexp
       | Ty_roundingMode ->
         assert false
 
