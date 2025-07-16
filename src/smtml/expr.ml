@@ -104,7 +104,7 @@ let rec compare_expr (e1 : t) (e2 : t) =
   match (e1.node, e2.node) with
   | Val v1, Val v2 -> Value.compare v1 v2
   | Ptr v1, Ptr v2 ->
-    let c = Int32.compare v1.base v2.base in
+    let c = Bitvector.compare v1.base v2.base in
     if c <> 0 then c else compare_expr v1.offset v2.offset
   | Symbol v1, Symbol v2 -> Symbol.compare v1 v2
   | List lt1, List lt2 -> List.compare compare_expr lt1 lt2
