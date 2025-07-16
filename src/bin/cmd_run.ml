@@ -110,7 +110,8 @@ let run ~debug ~dry ~print_statistics ~solver_type ~solver_mode ~from_file
            (exception-percentage %.2f%%)@;\
            @[<v 1>(errors (@;\
            %a@;\
-           ))@]@;)@]"
+           ))@]@;\
+           )@]"
           total exceptions percentage
           (Fmt.list ~sep:Fmt.cut (fun fmt (fpath, err_msg) ->
              Fmt.pf fmt "@[<hov 1>((file \"%a\")@;(error %S))@]" Fpath.pp fpath
